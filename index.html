@@ -208,6 +208,7 @@ function renderBank(){
  for(let offset=0;offset<bank.length;offset+=10){
   const items=bank.slice(offset,offset+10),number=Math.floor(offset/10)+1;
   const group=el('details',undefined,'bank-lesson');
+  if(offset===0)group.open=true;
   const heading=el('summary','Lekce '+number+' · '+items.length+' slovíček');
   const start=el('button','▶ Procvičovat lekci '+number);
   start.type='button';start.onclick=()=>startPractice(offset);
