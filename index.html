@@ -253,6 +253,28 @@ function startPractice(offset=0){
  exercise={items,i:0,correct:0,revealed:false,offset};
  showCard();$('moje-slovicka').scrollIntoView({behavior:'smooth'});
 }
+let gmeRecognizer=null;
+function gmeSpeechNormalise(value){return String(value||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').trim().replace(/\s+/g,' ')}
+function gmeSpeakCard(item){
+ const Ctor=window.SpeechRecognition||window.webkitSpeechRecognition;
+ const status=document.getElementById('gme-speech-status');
+ if(!Ctor){if(status)status.textContent='Tento prohlížeč nepodporuje rozpoznávání řeči. Použij ruční otočení.';return}
+ if(gmeRecognizer){try{gmeRecognizer.abort()}catch(e){}gmeRecognizer=null}
+ const rec=new Ctor();gmeRecognizer=rec;rec.lang='en-GB';rec.interimResults=false;rec.maxAlternatives=5;rec.continuous=false;
+ if(status)status.textContent='🎙️ Poslouchám… vyslov anglické slovo.';
+ rec.onresult=function(ev){
+  if(gmeRecognizer!==rec)return;
+  const alternatives=Array.from(ev.results[0]||[]).map(a=>a.transcript);
+  const target=gmeSpeechNormalise(item.word);
+  const matched=alternatives.some(t=>{const heard=gmeSpeechNormalise(t);return heard===target||heard.split(' ').includes(target)});
+  if(!exercise||exercise.items[exercise.i]!==item||exercise.revealed)return;
+  if(matched){gmeRecognizer=null;exercise.revealed=true;showCard()}
+  else if(status)status.textContent='Rozpoznáno: „'+(alternatives[0]||'')+'“. Zkus to znovu, nebo otoč kartičku ručně.';
+ };
+ rec.onerror=function(ev){if(status)status.textContent=ev.error==='not-allowed'?'Povol mikrofon v Safari, nebo otoč kartičku ručně.':'Rozpoznávání řeči selhalo ('+ev.error+'). Zkus to znovu.'};
+ rec.onend=function(){if(gmeRecognizer===rec)gmeRecognizer=null};
+ try{rec.start()}catch(e){if(status)status.textContent='Mikrofon se nepodařilo spustit. Použij ruční otočení.'}
+}
 function showCard(){
  const host=$('bank-practice');host.replaceChildren();if(!exercise)return;
  const number=Math.floor(exercise.offset/10)+1;
@@ -268,7 +290,9 @@ function showCard(){
  host.append(el('h2',item.word));
  if(!exercise.revealed){
   host.append(el('p','Co toto slovo znamená česky? Zkus si vzpomenout.'));
-  const reveal=el('button','👁 Ukázat překlad');reveal.onclick=()=>{exercise.revealed=true;showCard()};host.append(reveal);
+  const mic=el('button','🎤 Vyslovit slovo');mic.type='button';mic.onclick=()=>gmeSpeakCard(item);host.append(mic);
+  const speechStatus=el('p','Vyslov anglické slovo. Když ho prohlížeč rozpozná, kartička se sama otočí.','speech-status');speechStatus.id='gme-speech-status';speechStatus.setAttribute('role','status');host.append(speechStatus);
+  const reveal=el('button','👁 Ukázat překlad','secondary');reveal.type='button';reveal.onclick=()=>{if(gmeRecognizer){try{gmeRecognizer.abort()}catch(e){}gmeRecognizer=null}exercise.revealed=true;showCard()};host.append(reveal);
  }else{
   host.append(el('h3','🇨🇿 '+item.cs));
   const yes=el('button','✓ Znal/a jsem'),no=el('button','✕ Neznal/a jsem','secondary');
